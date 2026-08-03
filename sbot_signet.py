@@ -98,44 +98,47 @@ class SignetEvent(sublime_plugin.EventListener):
                 view.add_regions(SIGNET_REGION_NAME, regions, settings.get('scope'), SIGNET_ICON)
 
     def _read_store(self):
+        ''' General project opener. '''
+        global _hls
+
+        _temp_hls = sc.read_store()
+
+        # Sanity checks. Easier to make a new clean collection rather than remove parts.
+        _hls.clear()
+        for fn, hls in _temp_hls.items():
+            if os.path.exists(fn) and len(hls) > 0:
+                _hls[fn] = hls
+
+    def _write_store(self):
+        ''' General project saver. '''
+        sc.write_store(_hls)
+
+
+
+
+
+
+    def _read_store(self):
         ''' General project opener. Cleans up bad entries '''
         global _sigs
 
-        store_fn = sc.get_store_fn()
-        if os.path.isfile(store_fn):
-            try:
-                with open(store_fn, 'r') as fp:
-                    _temp_sigs = json.load(fp)
-                    # Sanity checks. Easier to make a new clean collection rather than remove parts.
-                    _sigs.clear()
+        _temp_sigs = sc.read_store()
 
-                    for proj_fn, proj_sigs in _temp_sigs.items():
-                        if os.path.exists(proj_fn):
-                            files = {}
-                            for fn, lines in _temp_sigs[proj_fn].items():
-                                if os.path.exists(fn) and len(lines) > 0:
-                                    files[fn] = lines
-                            if len(files) > 0:
-                                _sigs[proj_fn] = files
+        # Sanity checks. Easier to make a new clean collection rather than remove parts.
+        _sigs.clear()
 
-            except Exception as e:
-                sc.error(f'Error reading {store_fn}: {e}', e.__traceback__)
-
-        else:  # Assume new file with default fields.
-            sublime.status_message('Creating new signets file')
-            _sigs = {}
+        for proj_fn, proj_sigs in _temp_sigs.items():
+            if os.path.exists(proj_fn):
+                files = {}
+                for fn, lines in _temp_sigs[proj_fn].items():
+                    if os.path.exists(fn) and len(lines) > 0:
+                        files[fn] = lines
+                if len(files) > 0:
+                    _sigs[proj_fn] = files
 
     def _write_store(self):  #, window):
         ''' Save everything. '''
-        global _sigs
-
-        store_fn = sc.get_store_fn()
-
-        try:
-            with open(store_fn, 'w') as fp:
-                json.dump(_sigs, fp, indent=4)
-        except Exception as e:
-            sc.error(f'Error writing {store_fn}: {e}', e.__traceback__)
+        sc.write_store(_sigs)
 
     def _collect_sigs(self, view):
         ''' Update the signets from the view as they may have moved during editing. '''
