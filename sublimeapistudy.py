@@ -10,7 +10,11 @@ viewhint=0
 
 # Get-Content -Path .\sublimeapistudy_log.txt -Tail 10 -Wait
 
-# class E20260831(sublime_plugin.EventListener):
+class E20260831(sublime_plugin.EventListener):
+  def on_text_command(self, view, command_name, args):
+    if command_name == "undo":
+      debugprint("undo")
+      return None
 #   def on_init(self, views):
 #     print(str(self))
 #     file_path = self.views[0].file_name() # cannot get py folder

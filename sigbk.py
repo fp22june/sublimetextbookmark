@@ -11,59 +11,18 @@ import sublime_plugin
 import json
 import bisect
 import time
-
 SIGNETVIEW_NAMEID = 'Find Results'#'🔖'
 SIGNET_REGION_NAME = 'signet_region'
 SIGNET_ICON = 'Packages/Theme - Default/common/label.png'
 CMDAUTOOPENALL='findresultsmodopenall'
 MATCHFINDRESULTVIEW='Find Results'
+SYMLISTVIEW_NAMEID=u'𝌆'
 SESSIONSIGS = {}
 FSNAME = 'sigbk'
-
 SETTINGSD = os.path.join(sublime.packages_path(), 'User')
 pathlib.Path(SETTINGSD).mkdir(parents=True, exist_ok=True)
-
 DATAJSON=os.path.join(SETTINGSD, f'{FSNAME}.store.json')
-
 SETTINGSF = os.path.join(f'{FSNAME}.sublime-settings')
-
-def updateSessionsigFromViewRegions(view):
-  if (  (fn:=view.file_name())
-    and (w:=view.window())
-    and (pf:=w.project_file_name()) # is project
-    and (ps:=SESSIONSIGS.get(pf)) is not None # already has entry
-    and (obs:=ps.get(fn)) is not None # already has entries
-    and (rs:=sigrowlistFromViewRegions(view)) is not None # empty[] truthy
-  ):
-    if len(rs)==len(ps[fn]): # 1to1 ln switch
-      for i,r in enumerate(rs):
-        obs[i]["ln"]=r
-      ps[fn]=obs
-    else: # overwrite
-      ps[fn]=[newsig(view,r) for r in rs]
-def newsig(view,r):
-  return {
-    "tp": time.strftime("%Y-%m-%d %a %H:%M:%S", time.localtime()),
-    'ts': int(time.time()),
-    "ln": r,
-    "c": view.substr(view.line(view.text_point(r, 0))),
-  }
-def updateViewRegionsFromSessionsig(view):
-  if ( (not view.is_scratch())
-    and (fn:=view.file_name())
-    and (w:=view.window())
-    and (pf:=w.project_file_name()) # is project
-    and (ps:=SESSIONSIGS.get(pf)) is not None # already has entry
-    and (obs:=ps.get(fn)) is not None # already has entries
-  ):
-    regions=[
-        sublime.Region(pt, pt)
-        for o in obs
-        if (ln:=o.get("ln")) is not None
-        for pt in [view.text_point(ln, 0)]  # line start
-    ]
-    view.erase_regions(SIGNET_REGION_NAME)
-    view.add_regions(SIGNET_REGION_NAME, regions, str(sublime.load_settings(SETTINGSF).get('scope') or "region.redish"), SIGNET_ICON)
 
 def sigrowlistFromViewRegions(view):
     lns = []
@@ -73,8 +32,69 @@ def sigrowlistFromViewRegions(view):
     lns.sort()
     return lns
 
-def newSessionsig(x): SESSIONSIGS[x]={}; return SESSIONSIGS[x]
-def sessionsig(x): return SESSIONSIGS[x]
+def newSessionsig(x):SESSIONSIGS[x]={}; return SESSIONSIGS[x]
+def getSessionsig(x):return SESSIONSIGS.get(x)
+def newScope0ROfFile(p,f):p[f]=[]; return p[f]  # p= project= getSessionsig(str)
+def getScope0ROfFile(p,f):return p.get(f) # R= rows bookmark data; Scope0= view scope
+def setScope0ROfFile(p,f,obs):p[f]=obs
+def newsig(view,r):
+  return {
+    "tp": time.strftime("%Y-%m-%d %a %H:%M:%S", time.localtime()),
+    'ts': int(time.time()),
+    "ln": r,
+    "c": view.substr(view.line(view.text_point(r, 0))),
+  }
+
+def updateScope0RFromViewRegions(view):
+  if (  (f:=view.file_name())
+    and (w:=view.window())
+    and (pf:=w.project_file_name()) # is project
+    and (p:=getSessionsig(pf)) is not None # already has entry
+    and (obs:=getScope0ROfFile(p,f)) is not None # already has entries
+    and (rs:=sigrowlistFromViewRegions(view)) is not None # empty[] truthy
+  ):
+    if len(rs)==len(p[f]): # 1to1 ln switch
+      for i,r in enumerate(rs):
+        obs[i]["ln"]=r
+      setScope0ROfFile(p,f,obs)
+    else: # overwrite
+      setScope0ROfFile(p,f,[newsig(view,r) for r in rs])
+def updateViewRegionsFromScope0R(view):
+  if ( (not view.is_scratch())
+    and (f:=view.file_name())
+    and (w:=view.window())
+    and (pf:=w.project_file_name()) # is project
+    and (p:=getSessionsig(pf)) is not None # already has entry
+    and (obs:=getScope0ROfFile(p,f)) is not None # already has entries
+  ):
+    regions=[
+        sublime.Region(pt, pt)
+        for o in obs
+        if (ln:=o.get("ln")) is not None
+        for pt in [view.text_point(ln, 0)]  # line start
+    ]
+    view.erase_regions(SIGNET_REGION_NAME)
+    view.add_regions(SIGNET_REGION_NAME, regions, str(sublime.load_settings(SETTINGSF).get('scope') or "region.redish"), SIGNET_ICON)
+def addViewRegionsFromScope0R(pf,f,view): # by SbotToggleSignetCommand;  copied from updateViewRegionsFromScope0R(), skip some for perf only
+  if (  (p:=getSessionsig(pf)) is not None # already has entry
+    and (obs:=getScope0ROfFile(p,f)) is not None # already has entry
+  ):
+    regions=[
+        sublime.Region(pt, pt)
+        for o in obs
+        if (ln:=o.get("ln")) is not None
+        for pt in [view.text_point(ln, 0)]  # line start
+    ]
+    view.add_regions(SIGNET_REGION_NAME, regions, str(sublime.load_settings(SETTINGSF).get('scope') or "region.redish"), SIGNET_ICON)
+
+def toggleScope0R(p,f,r,view):
+  obs=getScope0ROfFile(p,f) or newScope0ROfFile(p,f)
+  if any(o.get("ln") == r for o in obs):
+    obs = [o for o in obs if o.get("ln") != r]
+  else:
+    obs.append(newsig(view,r))
+  obs=sorted(obs, key=lambda x: x["ln"])
+  setScope0ROfFile(p,f,obs)
 
 def updateSessionsigsFromDiskreadJson():
   global SESSIONSIGS
@@ -116,7 +136,7 @@ def writeJsonWithSessionsigs():
   temp_file = f"{DATAJSON}.{timestamp}.tmp"
   try:
       with open(temp_file, 'w') as fp:
-          json.dump(SESSIONSIGS, fp, indent=4)
+          json.dump(SESSIONSIGS, fp, indent=2)
       os.replace(temp_file, DATAJSON)
   except Exception:
       if os.path.exists(temp_file):
@@ -128,84 +148,71 @@ class E20260901(sublime_plugin.EventListener):
     updateSessionsigsFromDiskreadJson()
     if len(views) > 0 and views[0].window() is not None:
       for view in views:
-        updateViewRegionsFromSessionsig(view)
+        updateViewRegionsFromScope0R(view)
   def on_load_project(self, window): #  Project > Open; ! Not triggered at program start even if project restored  
     for view in window.views():
-      updateViewRegionsFromSessionsig(view)
+      updateViewRegionsFromScope0R(view)
   def on_load(self, view):
     updateSessionsigsFromDiskreadJson() #TODO reduce diskread
-    updateViewRegionsFromSessionsig(view)
+    updateViewRegionsFromScope0R(view)
   def on_pre_close_project(self, window):
     for view in window.views():
-      updateSessionsigFromViewRegions(view)
+      updateScope0RFromViewRegions(view)
     writeJsonWithSessionsigs()
   # def on_pre_close(self, view): pass # children of on_pre_close_project()
   def on_deactivated(self, view): # lost focus
     if((fn:=view.file_name())
       and os.path.exists(fn)
     ):
-      updateSessionsigFromViewRegions(view)
+      updateScope0RFromViewRegions(view)
       writeJsonWithSessionsigs()
   def on_activated(self, view):
     if(  view.name()==MATCHFINDRESULTVIEW 
       or MATCHFINDRESULTVIEW in (view.file_name() or []) ):
       # sublime.status_message(u".") # visually replace previous 
       pass # findresultsmod plugin
-    elif u'𝌆' in view.name() or u'𝌆' in (view.file_name() or []):
+    elif SYMLISTVIEW_NAMEID in view.name() or SYMLISTVIEW_NAMEID in (view.file_name() or []):
       # sublime.status_message(u".") # visually replace previous
       pass # symlist plugin
     else:
       rs=sigrowlistFromViewRegions(view)
       if len(rs)==0:
-        updateViewRegionsFromSessionsig(view) # tab right click > Split View
+        updateViewRegionsFromScope0R(view) # tab right click > Split View
         rs=sigrowlistFromViewRegions(view)
       sublime.status_message(u"🔖 {0} bookmark{1}".format(len(rs),'s' if len(rs)>1 else ''))
   #TODO
   # def on_reload(self, view):
-  #     updateViewRegionsFromSessionsig(view)
+  #     updateViewRegionsFromScope0R(view)
   # def on_reload_async(self, view):
-  #     updateViewRegionsFromSessionsig(view)
+  #     updateViewRegionsFromScope0R(view)
   # def on_revert(self, view):
-  #     updateViewRegionsFromSessionsig(view)
+  #     updateViewRegionsFromScope0R(view)
   # def on_revert_async(self, view):
-  #     updateViewRegionsFromSessionsig(view) 
+  #     updateViewRegionsFromScope0R(view) 
+
 class SbotToggleSignetCommand(sublime_plugin.TextCommand):
   def is_visible(self):
     return self.view.is_scratch() is False and self.view.file_name() is not None
   def run(self, __):
     view=self.view
     if ( (not view.is_scratch())
-      and (fn:=view.file_name())
+      and (f:=view.file_name())
       and (w:=view.window())
       and (pf:=w.project_file_name()) # is project
-      # and (ps:=SESSIONSIGS.get(pf)) is not None # already has entry
-      # and (obs:=ps.get(fn)) is not None # already has entries
+      # and (p:=getSessionsig(pf)) is not None # already has entry
+      # and (obs:=getScope0ROfFile(p,f)) is not None # already has entries
       and (rs:=sigrowlistFromViewRegions(view)) is not None # empty[] truthy
       and (caret:=view.sel()[0].b if len(view.sel()) == 1 else None) is not None # 0 truthy
       and (r_:=view.rowcol(caret)) # invalid input outputs (0,0), is truthy         CAUTION invalid
     ):
-      updateSessionsigFromViewRegions(view)
+      updateScope0RFromViewRegions(view)
       r,_=r_
       if r is not None:
         if r in rs: rs.remove(r)
         else:       rs.append(r)
-      ps = SESSIONSIGS.get(pf) or newSessionsig(pf)
-      obs=ps.get(fn) or []
-      if any(o.get("ln") == r for o in obs):
-        obs = [o for o in obs if o.get("ln") != r]
-      else:
-        obs.append(newsig(view,r))
-      obs=sorted(obs, key=lambda x: x["ln"])
-      ps[fn]=obs
-      #
-      regions=[
-          sublime.Region(pt, pt)
-          for o in obs
-          if (ln:=o.get("ln")) is not None
-          for pt in [view.text_point(ln, 0)]  # line start
-      ]
+        toggleScope0R(getSessionsig(pf) or newSessionsig(pf),f,r,view)
       view.erase_regions(SIGNET_REGION_NAME)
-      view.add_regions(SIGNET_REGION_NAME, regions, str(sublime.load_settings(SETTINGSF).get('scope') or "region.redish"), SIGNET_ICON)
+      addViewRegionsFromScope0R(pf,f,view)
       writeJsonWithSessionsigs()
 class SbotGotoSignetCommand(sublime_plugin.TextCommand):
     def is_enabled(self):
@@ -222,8 +229,8 @@ class SbotGotoSignetCommand(sublime_plugin.TextCommand):
         and (fn:=view.file_name())
         and (w:=view.window())
         and (pf:=w.project_file_name()) # is project
-        and (ps:=SESSIONSIGS.get(pf)) is not None # already has entry
-        # and (obs:=ps.get(fn)) is not None # already has entries
+        and (ps:=getSessionsig(pf)) is not None # already has entry
+        # and (obs:=getScope0ROfFile(ps,fn)) is not None # already has entries
         # and (rs:=sigrowlistFromViewRegions(view)) is not None # empty[] truthy
         and (caret:=view.sel()[0].b if len(view.sel()) == 1 else None) is not None # 0 truthy
         and (r_:=view.rowcol(caret)) # invalid input outputs (0,0), is truthy         CAUTION invalid
@@ -313,7 +320,7 @@ class SbotgenlistCommand(sublime_plugin.TextCommand):
     view=self.view
     if (   (w:=view.window())
       and (pf:=w.project_file_name()) # is project
-      and (ps:=SESSIONSIGS.get(pf)) is not None # already has entry
+      and (ps:=getSessionsig(pf)) is not None # already has entry
     ):
       s=['']
       for fn in [ps for _, ps 
@@ -451,9 +458,6 @@ class SbothighlightsymlistrowsCommand(sublime_plugin.TextCommand): #expose symli
           pt = self.view.text_point(r, 0)  # line start
           regions.append(sublime.Region(pt, pt))
       self.view.add_regions('symlistrowsig', regions, 'region.redish', 'Packages/Theme - Default/common/label.png')
-
-
-
 class SbotopenjsonCommand(sublime_plugin.TextCommand):  #run_command('sbotopenjson', 
   def run(self, edit):
     if os.path.isfile(DATAJSON):

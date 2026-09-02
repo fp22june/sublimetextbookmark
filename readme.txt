@@ -16,7 +16,7 @@ wip 2026Sep    scope, instance, data lifespan, event
       insert
         auto adjust regions
         auto adjust vanilla bookmark
-      undo insert to del somehow                                <ignore for now
+      undo insert to del somehow (dirty, exit st, open, undo)    < TODO  , diy detct , no api on_undo
         somehow del regions
         somehow del vanilla bookmark
       del                                                  <ignore,  user can decide with bkmtoggle
