@@ -3,5 +3,5 @@
     "scope": "region.redish",
 
     // Traverse extent: all project files or just current file.
-    "nav_all_files": true,
+    "nav_all_files": false,
 }

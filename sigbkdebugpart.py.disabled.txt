@@ -1,0 +1,68 @@
+
+LOGF = os.path.join(SETTINGSD, f'{FSNAME}_log.txt')
+if not os.path.exists(LOGF): open(LOGF, 'w').close()
+if os.path.exists(LOGF) and os.path.getsize(LOGF) > 50000:
+  os.replace(LOGF, f"{LOGF}.bak")
+  open(LOGF, 'w').close()
+LL_ERROR = 0
+LL_INFO = 1
+LL_DEBUG = 2
+def _write_log(level, message, tb=None):
+    '''Format a standard message with caller info and log it.'''
+
+    # if LOGF == INVALID_FN:
+    #     raise RuntimeError('Logger has not been initialized.')
+
+    # Gates. Sometimes get stray empty lines.
+    if len(message) == 0:
+        return
+    if len(message) == 1 and message[0] == '\n':
+        return
+
+    # Get caller info.
+    frame = sys._getframe(2)
+    fn = os.path.basename(frame.f_code.co_filename)
+    line = frame.f_lineno
+    # f'func = {frame.f_code.co_name}'
+    # f'mod_name = {frame.f_globals["__name__"]}'
+    # f'class_name = {frame.f_locals["self"].__class__.__name__}'
+
+    slvl = '???'
+    if level == LL_ERROR: slvl = 'ERR'
+    elif level == LL_INFO: slvl = 'INF'
+    elif level == LL_DEBUG: slvl = 'DBG'
+
+    time_str = f'{str(datetime.datetime.now())}'[0:-3]
+
+    # Write the record. No need to be synchronized across multiple sbot plugins
+    # as ST docs say that API runs on a single thread.
+    with open(LOGF, 'a') as log:
+        out_line = f'{time_str} {slvl} {fn}:{line} {message}'
+        log.write(out_line + '\n')
+        if tb is not None:
+            # The traceback formatter is a bit ugly - clean it up.
+            tblines = []
+            for s in traceback.format_tb(tb):
+                if len(s) > 0:
+                    tblines.append(s[:-1])
+            stb = '\n'.join(tblines)
+            log.write(stb + '\n')
+        log.flush()
+def error(message, tb=None):
+    _write_log(LL_ERROR, message, tb)
+    info = [message]
+    # if tb is not None:
+    #     frame = traceback.extract_tb(tb)[-1]
+    #     info.append(f'at {frame.name}({frame.lineno})')
+    # info.append('See the log for details')
+    sublime.error_message('\n'.join(info))  # This goes to console too.
+def info(message):
+    _write_log(LL_INFO, message)
+    sublime.status_message(message)
+def debug(message):
+    _write_log(LL_DEBUG, message)
+
+def debugprint(x):
+  debug(x)
+  print(x)
+  pass
