@@ -10,17 +10,6 @@ viewhint=0
 
 # Get-Content -Path .\sublimeapistudy_log.txt -Tail 10 -Wait
 
-class E20260831(sublime_plugin.EventListener):
-  def on_text_command(self, view, command_name, args):
-    if command_name == "undo":
-      debugprint("undo")
-      return None
-#   def on_init(self, views):
-#     print(str(self))
-#     file_path = self.views[0].file_name() # cannot get py folder
-#     folder_path = os.path.dirname(file_path)
-#     folder_name = os.path.basename(folder_path)
-#     print("SIGSTUDY Folder Path:"+folder_path)
 def log(message, tb=None):
     # if LOGF == INVALID_FN:
     #     raise RuntimeError('Logger has not been initialized.')
@@ -38,7 +27,7 @@ def log(message, tb=None):
     # Write the record. No need to be synchronized across multiple sbot plugins
     # as ST docs say that API runs on a single thread.
     with open(LOGF, 'a') as log:
-        out_line = "{0} {1}:{2} {3}".format(time_str, fn, line, message)
+        out_line = "{0} {1}:{2} {3}".format(time_str, fn, str(line).ljust(4), message)
         log.write(out_line + '\n')
         if tb is not None:
             # The traceback formatter is a bit ugly - clean it up.
@@ -49,18 +38,29 @@ def log(message, tb=None):
             stb = '\n'.join(tblines)
             log.write(stb + '\n')
         log.flush()
+def debugprint(x=None):
+  global viewhint
+  x=sys._getframe().f_back.f_code.co_name.ljust(15)+' '+(x or '')
+  sys.stdout.write(x+"\n")
+  log(' '*viewhint+'.'+' '*(6-viewhint) + x); 
+  viewhint+=1
+  if viewhint>=6: viewhint=0 
+  pass
 
+class E20260831(sublime_plugin.EventListener):
+  def on_text_command(self, view, command_name, args):
+    if command_name == "undo":
+      debugprint("undo")
+      return None
+#   def on_init(self, views):
+#     print(str(self))
+#     file_path = self.views[0].file_name() # cannot get py folder
+#     folder_path = os.path.dirname(file_path)
+#     folder_name = os.path.basename(folder_path)
+#     print("SIGSTUDY Folder Path:"+folder_path)
 class E1Command(sublime_plugin.TextCommand): #run_command('e1')
   def run(self, edit):
     self.view.add_regions('R', [self.view.sel()[0]], "region.orangish", 'Packages/Theme - Default/common/label.png')
-def debugprint(x=None):
-  global viewhint
-  x=sys._getframe().f_back.f_code.co_name+' '+(x or '')
-  sys.stdout.write(x+"\n")
-  viewhint+=1
-  if viewhint>=10: log(' '*viewhint+'.'+' '*(10-viewhint)); viewhint=0 
-  log(x)
-  pass
 class StudyEvent(sublime_plugin.EventListener):
     def on_init(self, views):
       debugprint()

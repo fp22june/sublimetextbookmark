@@ -12,7 +12,7 @@ import json
 import bisect
 import time
 SIGNETVIEW_NAMEID = 'Find Results'#'🔖'
-SIGNET_REGION_NAME = 'signet_region'
+SIGNET_REGION_NAME = 'signet_region2'
 SIGNET_ICON = 'Packages/Theme - Default/common/label.png'
 CMDAUTOOPENALL='findresultsmodopenall'
 MATCHFINDRESULTVIEW='Find Results'
@@ -21,11 +21,17 @@ SESSIONSIGS = {}
 FSNAME = 'sigbk'
 SETTINGSD = os.path.join(sublime.packages_path(), 'User')
 pathlib.Path(SETTINGSD).mkdir(parents=True, exist_ok=True)
-DATAJSON=os.path.join(SETTINGSD, f'{FSNAME}.store.json')
-FILEFORMATVER='1'
+DEBUGSTARTLOADDATAJSON=None or os.path.join(SETTINGSD, f'{FSNAME}.store.sessionstartreadonly.json')
+LOADDATAJSON=os.path.join(SETTINGSD, f'{FSNAME}.store.json')
+WORKJSONVER='1'
+SAVEDATAJSON=os.path.join(SETTINGSD, f'{FSNAME}.store.json')
+SAVEJSONVER='1'
+# SAVEDATAJSON=os.path.join(SETTINGSD, f'{FSNAME}.store')
+# SAVEJSONVER=0
 SETTINGSF = os.path.join(f'{FSNAME}.sublime-settings')
 ENUMSCOPE=['DATAHOT','DATAFILETIME']
 S1NAMETS='TIMESTAMP'
+S1NAMETSD='TIMESTAMPDEBUG'
 
 def sigrowlistFromViewRegions(view):
     lns = []
@@ -35,7 +41,7 @@ def sigrowlistFromViewRegions(view):
     lns.sort()
     return lns
 
-def newSessionsigs():                return (SESSIONSIGS:={'ver': FILEFORMATVER})
+def newSessionsigs():                return (SESSIONSIGS:={'ver': WORKJSONVER})
 def newProject(x):                   SESSIONSIGS[x]={}; return SESSIONSIGS[x]
 def getProject(x):                   return SESSIONSIGS.get(x)
 def newFile(p,f):                    p[f]={}; return p[f]
@@ -44,7 +50,7 @@ def newScopedSigsOfFile(s,p,f):      rs=getFile(p,f) or newFile(p,f); rs[s]=[]; 
 def getScopedSigsOfFile(s,p,f):      return rs.get(s) if(rs:=getFile(p,f)) is not None else None
 def setScopedSigsOfFile(s,p,f,obs):  rs=getFile(p,f) or newFile(p,f); rs[s]=obs
 def getScope1TSOfFile(p,f):          return rs.get(S1NAMETS)     if(rs:=getFile(p,f)) is not None else None
-def setScope1TSOfFile(p,f,t):        rs=getFile(p,f) or newFile(p,f); rs[S1NAMETS]=t
+def setScope1TSOfFile(p,f,t,td=None):rs=getFile(p,f) or newFile(p,f); rs[S1NAMETS]=t; rs[S1NAMETSD]=td if td else None
 def newsig(view,r):
   return {
     "tp": time.strftime("%Y-%m-%d %a %H:%M:%S", time.localtime()),
@@ -61,15 +67,25 @@ def updateScope0RFromViewRegions(view):
     and (obs:=getScopedSigsOfFile('DATAHOT',p,f)) is not None # already has entries
     and (rs:=sigrowlistFromViewRegions(view)) is not None # empty[] truthy
   ):
-    if len(rs)==len(p[f]): # 1to1 ln switch
+    if len(rs)==len(obs): # 1to1 ln switch
       for i,r in enumerate(rs):
         obs[i]["ln"]=r
       setScopedSigsOfFile('DATAHOT',p,f,obs)
     else: # overwrite
       setScopedSigsOfFile('DATAHOT',p,f,[newsig(view,r) for r in rs])
-def updateScope1TAndRFromViewRegions(p,f,view,rs):
-  setScopedSigsOfFile('DATAFILETIME',p,f,[newsig(view,r) for r in rs])
-  setScope1TSOfFile(p,f,os.path.getmtime(view.file_name()))
+def newScope1TAndRFromViewRegions(p,f,view):
+  if obs:=getScopedSigsOfFile('DATAHOT',p,f):
+    setScopedSigsOfFile('DATAFILETIME',p,f,obs)
+    setScope1TSOfFile(p,f,os.path.getmtime(view.file_name()),datetime.datetime.fromtimestamp(os.path.getmtime(view.file_name())).strftime('%Y-%m-%d %a %H:%M:%S'))
+  else:
+    if(   (rs:=sigrowlistFromViewRegions(view)) # [] falsy  ==  len(obs)>0
+      and  (obs:=[newsig(view,r) for r in rs])
+    ):
+      setScopedSigsOfFile('DATAHOT',p,f,obs)
+      setScopedSigsOfFile('DATAFILETIME',p,f,obs)
+      setScope1TSOfFile(p,f,os.path.getmtime(view.file_name()),datetime.datetime.fromtimestamp(os.path.getmtime(view.file_name())).strftime('%Y-%m-%d %a %H:%M:%S'))
+def promptUpdateScope1TAndRFromViewRegions(p,f,view):
+  pass
 def updateViewRegionsFromScopedSigs(s,view):
   if ( (not view.is_scratch())
     and (f:=view.file_name())
@@ -110,50 +126,61 @@ def toggleScope0R(p,f,r,view):
 def updateSessionsigsFromDiskreadJson():
   global SESSIONSIGS
   SESSIONSIGS=newSessionsigs()
-  if os.path.isfile(DATAJSON):
+  if os.path.isfile(DEBUGSTARTLOADDATAJSON or LOADDATAJSON):
     try:
-      with open(DATAJSON, 'r') as j:
+      with open(DEBUGSTARTLOADDATAJSON or LOADDATAJSON, 'r') as j:
         jd=json.load(j)
-        ver=jd.get('ver') or FILEFORMATVER
+        loadedver=jd.get('ver')
         for pf, fs in jd.items(): # if os.path.exists(pf):     #mod retain invalid
           if pf=='ver':
             continue
           SESSIONSIGS[pf]={}
-          for fn, obs in fs.items():  # if os.path.exists(fn) and len(lines) > 0:     #mod retain invalid
+          for fn, ds in fs.items():  # if os.path.exists(fn) and len(lines) > 0:     #mod retain invalid
             SESSIONSIGS[pf][fn]={}
-            if ver=='1':
-              for k, v in obs.items():
-                if k in ENUMSCOPE:
-                  t=[]
-                  for o in v:
-                    if o.get("ln") is not None:
-                      ao={
-                        "ln": o.get("ln")
-                      }
-                      if "tp" in o: ao["tp"]=o.get("tp")
-                      if 'ts' in o: ao['ts']=o.get('ts')
-                      if "c" in o:  ao["c" ]=o.get("c")
-                      t.append(ao)
-                  SESSIONSIGS[pf][fn][k]=t
-                elif k==S1NAMETS:
-                  SESSIONSIGS[pf][fn][k]=v
-            else: # cepthomas/SbotSignet 1567db9
-              SESSIONSIGS[pf][fn]['DATAHOT'] = [{"ln": o} for o in obs]
+            if WORKJSONVER=='1':
+              if loadedver=='1':
+                for k, v in ds.items():
+                  if k in ENUMSCOPE:
+                    t=[]
+                    for o in v:
+                      if o.get("ln") is not None:
+                        ao={
+                          "ln": o.get("ln")
+                        }
+                        if "tp" in o: ao["tp"]=o.get("tp")
+                        if 'ts' in o: ao['ts']=o.get('ts')
+                        if "c" in o:  ao["c" ]=o.get("c")
+                        t.append(ao)
+                    SESSIONSIGS[pf][fn][k]=t
+                  elif k==S1NAMETS:
+                    SESSIONSIGS[pf][fn][k]=v
+              else: # cepthomas/SbotSignet 1567db9
+                SESSIONSIGS[pf][fn]['DATAHOT'] = [{"ln": o} for o in ds]
+      # print('sigbk json diskread')
+      # print(SESSIONSIGS)
     except Exception:
       raise
-    #   error(f'Error reading {DATAJSON}: {e}', e.__traceback__)
+    #   error(f'Error reading {LOADDATAJSON}: {e}', e.__traceback__)
 def writeJsonWithSessionsigs():
   # try:
-  #   with open(DATAJSON, 'w') as fp:
+  #   with open(SAVEDATAJSON, 'w') as fp:
   #     json.dump(SESSIONSIGS, fp, indent=4)
   # except Exception as e:
-  #   error(f'Error writing {DATAJSON}: {e}', e.__traceback__)
+  #   error(f'Error writing {SAVEDATAJSON}: {e}', e.__traceback__)
   timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-  temp_file = f"{DATAJSON}.{timestamp}.tmp"
+  temp_file = f"{SAVEDATAJSON}.{timestamp}.tmp"
   try:
       with open(temp_file, 'w') as fp:
-          json.dump(SESSIONSIGS, fp, indent=2)
-      os.replace(temp_file, DATAJSON)
+        if WORKJSONVER=='1':
+          if SAVEJSONVER=='1':
+            json.dump(SESSIONSIGS, fp, indent=2)
+          else: # cepthomas/SbotSignet 1567db9
+            json.dump({
+                pf: {fn: [v['ln'] for v in ds['DATAHOT']] 
+                    for fn, ds in fs.items()}
+                for pf, fs in SESSIONSIGS.items() if pf != 'ver'
+              }, fp, indent=2)
+      os.replace(temp_file, SAVEDATAJSON)
   except Exception:
       if os.path.exists(temp_file):
           pass#os.remove(temp_file)
@@ -196,17 +223,29 @@ class E20260901(sublime_plugin.EventListener):
         updateViewRegionsFromScopedSigs('DATAHOT',view) # tab right click > Split View
         rs=sigrowlistFromViewRegions(view)
       sublime.status_message(u"🔖 {0} bookmark{1}".format(len(rs),'s' if len(rs)>1 else ''))
-    # if(   not view.is_dirty()                               also   _onload?
-    #   and (f:=view.file_name()) 
-    #   and (w:=view.window())
-    #   and (pf:=w.project_file_name()) # is project
-    #   and (p:=getProject(pf)) is not None # already has entry
-    #   and os.path.exists(f)
-    #   and (  not (ts:=getScope1TSOfFile(p,f))
-    #       or ts!=getScope1TSOfFile(p,f) )
-    #   and (rs:=sigrowlistFromViewRegions(view)) is not None # empty[] truthy
-    # ):
-    #   updateScope1TAndRFromViewRegions(p,f,view,rs)                   overwrite all with current time  ... 
+    #
+    if(   not view.is_dirty()
+      and (f:=view.file_name()) 
+      and (w:=view.window())
+      and (pf:=w.project_file_name()) # is project
+      and (p:=getProject(pf)) is not None # already has entry
+      and os.path.exists(f)
+    ):
+      if not (ts:=getScope1TSOfFile(p,f)):
+        newScope1TAndRFromViewRegions(p,f,view)
+      elif ts!=os.path.getmtime(view.file_name()):
+        # promptUpdateScope1TAndRFromViewRegions(p,f,view)
+        pass
+  def on_post_save(self, view):
+    if(   not view.is_dirty()
+      and (f:=view.file_name()) 
+      and (w:=view.window())
+      and (pf:=w.project_file_name()) # is project
+      and (p:=getProject(pf)) is not None # already has entry
+      and os.path.exists(f)
+    ):
+      if not (ts:=getScope1TSOfFile(p,f)):
+        newScope1TAndRFromViewRegions(p,f,view)
   #TODO
   # def on_reload(self, view):
   #     updateViewRegionsFromScopedSigs('DATAFILETIME',view)
@@ -250,7 +289,7 @@ class SbotGotoSignetCommand(sublime_plugin.TextCommand):
     def run(self, __, where):
       dnext=where=='next'
       nav_all_files=sublime.load_settings(SETTINGSF).get('nav_all_files') or False
-      print(nav_all_files)
+      # print(nav_all_files)
       view=self.view
       if ( (not view.is_scratch())
         and (fn:=view.file_name())
@@ -345,6 +384,11 @@ class SbotGotoSignetCommand(sublime_plugin.TextCommand):
 class SbotgenlistCommand(sublime_plugin.TextCommand):
   def run(self, __):
     view=self.view
+    if((fn:=view.file_name())
+      and os.path.exists(fn)
+    ):
+      updateScope0RFromViewRegions(view)
+      writeJsonWithSessionsigs()
     if (   (w:=view.window())
       and (pf:=w.project_file_name()) # is project
       and (ps:=getProject(pf)) is not None # already has entry
@@ -360,7 +404,7 @@ class SbotgenlistCommand(sublime_plugin.TextCommand):
             #sys.stdout.write(">>>> ok " +str(fn)+'\n')
             fv=ov
             # ov.substr(view.line(view.text_point(rr, 0)))
-        obs=ps[fn]
+        obs=getScopedSigsOfFile('DATAHOT',ps,fn)
         if not len(obs)>0:
           continue
         obs=sorted(obs, key=lambda x: x["ln"])
@@ -485,7 +529,3 @@ class SbothighlightsymlistrowsCommand(sublime_plugin.TextCommand): #expose symli
           pt = self.view.text_point(r, 0)  # line start
           regions.append(sublime.Region(pt, pt))
       self.view.add_regions('symlistrowsig', regions, 'region.redish', 'Packages/Theme - Default/common/label.png')
-class SbotopenjsonCommand(sublime_plugin.TextCommand):  #run_command('sbotopenjson', 
-  def run(self, edit):
-    if os.path.isfile(DATAJSON):
-      self.view.window().open_file(DATAJSON)
