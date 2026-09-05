@@ -11,10 +11,12 @@ demo video ![webm(2M)](https://raw.githubusercontent.com/fp22june/sublimetextboo
     edited file, File>Revert
     add signet, close st, file content overwritten externally (repo git ops), open
     don't edit, add signet only, st stay open, file content overwritten externally (repo git ops) (st auto reload)
+    at view close; deny save prompt
   current issues
     add text, add signet, close st, open, undo to del added text
-    at view close; deny save prompt
-    backup option or ui show deleted for        unmatched sigs del at revert/extmod, .  
+    backup option or ui show deleted for        unmatched sigs del at revert/extmod, .
+    demo vid git checkoutsoft
+    ~6mo, ?polite to pr upstream heavy rewrite? or dist own packagecontrol
 
   test  commented commits should run, never get forcepsuhed
   dev   numbered commits may not run, often get forcepushed
@@ -95,7 +97,7 @@ demo video ![webm(2M)](https://raw.githubusercontent.com/fp22june/sublimetextboo
       at view close (click tab X)
         discard regions
         discard vanilla bookmark                                  < feature most wanted by sublimetexters
-      at view close; deny save prompt                            <tricky, TODO
+      at view close; deny save prompt                            <tricky, DONE
         retain dirty , if not last view of file after SplitView
         discard dirty, only if last 
       while file open; content overwritten external                 < on_reload  on_reload_async

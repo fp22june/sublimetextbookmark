@@ -29,9 +29,11 @@ SAVEJSONVER='1'
 # SAVEDATAJSON=os.path.join(SETTINGSD, f'{FSNAME}.store')
 # SAVEJSONVER=0
 SETTINGSF = os.path.join(f'{FSNAME}.sublime-settings')
-ENUMSCOPE=['DATAHOT','DATAFILETIME'] #Scope0Sig, Scope1Sig
+ENUMSIGSCOPE=['DATAHOT','DATAFILETIME'] #Scope0Sig, Scope1Sig
+INVALIDSIG='ARCHIVE'
 S1NAMETS='TIMESTAMP'
 S1NAMETSLOCAL='TIMESTAMPLOCAL'
+def debugprint(view,x):view.run_command('d',{'x':x}) #sublimeapistudy.py
 
 def sigrowlistFromViewRegions(view):
     lns = []
@@ -41,16 +43,22 @@ def sigrowlistFromViewRegions(view):
     lns.sort()
     return lns
 
-def newSessionsigs():                return (SESSIONSIGS:={'ver': WORKJSONVER})
-def newProject(x):                   SESSIONSIGS[x]={}; return SESSIONSIGS[x]
-def getProject(x):                   return SESSIONSIGS.get(x)
-def newFile(p,f):                    p[f]={}; return p[f]
-def getFile(p,f):                    return p.get(f) if p is not None else None
-def newScopedSigsOfFile(s,p,f):      rs=getFile(p,f) or newFile(p,f); rs[s]=[]; return rs[s]      # p=getProject(str), f=view.file_name()
-def getScopedSigsOfFile(s,p,f):      return rs.get(s) if(rs:=getFile(p,f)) is not None else None
-def setScopedSigsOfFile(s,p,f,obs):  rs=getFile(p,f) or newFile(p,f); rs[s]=obs
-def getScope1TSOfFile(p,f):          return rs.get(S1NAMETS)     if(rs:=getFile(p,f)) is not None else None
-def setScope1TSOfFile(p,f,t,t2=None):rs=getFile(p,f) or newFile(p,f); rs[S1NAMETS]=t; rs[S1NAMETSLOCAL]=t2 if t2 else None
+def newSessionsigs():                 return (SESSIONSIGS:={'ver': WORKJSONVER})
+def newProject(x):                    SESSIONSIGS[x]={}; return SESSIONSIGS[x]
+def getProject(x):                    return SESSIONSIGS.get(x)
+def newFile(p,f):                     p[f]={}; return p[f]
+def getFile(p,f):                     return p.get(f) if p is not None else None
+def newScopedSigsOfFile(s,p,f):       rs=getFile(p,f) or newFile(p,f); rs[s]=[]; return rs[s]      # p=getProject(str), f=view.file_name()
+def getScopedSigsOfFile(s,p,f):       return rs.get(s)            if(rs:=getFile(p,f)) is not None else None
+def setScopedSigsOfFile(s,p,f,obs):   rs=getFile(p,f) or newFile(p,f); rs[s]=obs
+def getScope1TSOfFile(p,f):           return rs.get(S1NAMETS)     if(rs:=getFile(p,f)) is not None else None
+def setScope1TSOfFile(p,f,t,t2=None): rs=getFile(p,f) or newFile(p,f); rs[S1NAMETS]=t; rs[S1NAMETSLOCAL]=t2 if t2 else None
+def getArchiveOfFile(p,f):            return rs.get(INVALIDSIG)   if(rs:=getFile(p,f)) is not None else None
+def setArchiveOfFile(p,f,obs):        rs=getFile(p,f) or newFile(p,f); rs[INVALIDSIG]=[
+                                        {**o,
+                                        'tsp':time.strftime("%Y-%m-%d %a %H:%M:%S", time.localtime()),
+                                        'tsa':int(time.time())
+                                        } for o in obs]
 def newsig(view,r):
   return {
     "tp": time.strftime("%Y-%m-%d %a %H:%M:%S", time.localtime()),
@@ -97,13 +105,31 @@ def updateScope0SigFromScope1Sig(view):
     if tf==ts:
       setScopedSigsOfFile('DATAHOT',p,f,obs)
     else: # timestamp unmatch
-      vobs=[ o for o in obs 
-            if o["c"]==view.substr(view.line(view.text_point(o["ln"], 0))) ] # 1to1 ln switch if snippets match     # TODO backup unmatch sigs before delete
+      # vobs=[ o for o in obs 
+      #       if o["c"]==view.substr(view.line(view.text_point(o["ln"], 0))) ]
+      vobs=[]
+      ivobs=[]
+      for o in obs:
+        if o["c"]==view.substr(view.line(view.text_point(o["ln"], 0))):
+          vobs.append(o.copy()) # 1to1 ln switch if snippets match
+        else:
+          ivobs.append(o.copy())
+      setArchiveOfFile(p,f,ivobs)
       setScopedSigsOfFile('DATAHOT',p,f,vobs)
       setScopedSigsOfFile('DATAFILETIME',p,f,vobs)
       setScope1TSOfFile(p,f,os.path.getmtime(view.file_name()),datetime.datetime.fromtimestamp(os.path.getmtime(view.file_name())).strftime('%Y-%m-%d %a %H:%M:%S'))
-      sublime.status_message(u"🔖 Reverted / File modification detected, {0} / {1} bookmark{2} restored".format(len(vobs),len(obs),'s' if len(obs)>1 else ''))
-      pass
+      sd=len(obs)-len(vobs)
+      if sd==0:
+        sublime.status_message(u"🔖 Reverted / File modification detected, all bookmarks restored and adjusted to new line numbers.")
+      else:
+        sublime.status_message(u"🔖 Reverted / File modification detected, {0} / {1} invalid bookmark{2} archived.".format(sd,len(obs),'s' if sd>1 else ''))
+      #debug
+      if 0<sd:
+        debugprint(view,'{0} archived'.format(sd))
+        [debugprint(view,y) for y in
+          [ ('\n ln#'+str(p['ln']).ljust(4) + str(p['tp'])                                           +':'+str(p['c'])
+            +'\n '+      '(now)'.ljust(3+4) + time.strftime("%Y-%m-%d %a %H:%M:%S", time.localtime())+':'+view.substr(view.line(view.text_point(p["ln"], 0)))
+            ) for p in ivobs ] ]
 def updateViewRegionsFromScopedSig(s,view):
   if ( (not view.is_scratch())
     and (f:=view.file_name())
@@ -158,16 +184,18 @@ def updateSessionsigsFromDiskreadJson():
             if WORKJSONVER=='1':
               if loadedver=='1':
                 for k, v in ds.items():
-                  if k in ENUMSCOPE:
+                  if k in [*ENUMSIGSCOPE, INVALIDSIG]:
                     t=[]
                     for o in v:
                       if o.get("ln") is not None:
                         ao={
                           "ln": o.get("ln")
                         }
-                        if "tp" in o: ao["tp"]=o.get("tp")
-                        if 'ts' in o: ao['ts']=o.get('ts')
-                        if "c" in o:  ao["c" ]=o.get("c")
+                        if "tp"  in o:  ao["tp"]=o.get("tp")
+                        if 'ts'  in o:  ao['ts']=o.get('ts')
+                        if "c"   in o:   ao["c"]=o.get("c")
+                        if "tsp" in o: ao["tsp"]=o.get("tsp")
+                        if "tsa" in o: ao["tsa"]=o.get("tsa")
                         t.append(ao)
                     SESSIONSIGS[pf][fn][k]=t
                   elif k==S1NAMETS:
@@ -219,6 +247,8 @@ class E20260901(sublime_plugin.EventListener):
         updateViewRegionsFromScopedSig('DATAHOT',view)
   def on_load(self, view):
     updateSessionsigsFromDiskreadJson() #TODO reduce diskread
+    if not view.is_dirty(): # needed?
+      updateScope0SigFromScope1Sig(view)
     updateViewRegionsFromScopedSig('DATAHOT',view)
   def on_pre_close_project(self, window):
     for view in window.views():
@@ -246,9 +276,7 @@ class E20260901(sublime_plugin.EventListener):
           updateScope0SigFromScope1Sig(view)
         updateViewRegionsFromScopedSig('DATAHOT',view)
         rs=sigrowlistFromViewRegions(view)
-      if not view.is_dirty():
-        pass
-      else:
+      if len(rs)>1:
         sublime.status_message(u"🔖 {0} bookmark{1}".format(len(rs),'s' if len(rs)>1 else ''))
     #
     if(   not view.is_dirty()

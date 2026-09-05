@@ -47,6 +47,9 @@ def debugprint(x=None):
   viewhint+=1
   if viewhint>=20: viewhint=0 
   pass
+class DCommand(sublime_plugin.TextCommand): #run_command('d',{'x':
+  def run(self, edit, x=''):
+    debugprint(x)
 
 class E20260831(sublime_plugin.EventListener):
   def on_text_command(self, view, command_name, args):
