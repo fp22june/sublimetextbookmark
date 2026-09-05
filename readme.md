@@ -14,7 +14,7 @@ demo video ![webm(2M)](https://raw.githubusercontent.com/fp22june/sublimetextboo
   current issues
     add text, add signet, close st, open, undo to del added text
     at view close; deny save prompt
-		backup option or ui show deleted for        unmatched sigs del at revert/extmod, .  
+    backup option or ui show deleted for        unmatched sigs del at revert/extmod, .  
 
   test  commented commits should run, never get forcepsuhed
   dev   numbered commits may not run, often get forcepushed
@@ -42,13 +42,13 @@ demo video ![webm(2M)](https://raw.githubusercontent.com/fp22june/sublimetextboo
     camel<>underscore   class NocamelyestextsearchCommand(sublime_plugin.TextCommand):  #run_command('nocamelyestextsearch'
     view.id()     int recycle;     set().add(vid)  seems not working  
     storeread once only "at st start".
-	  do not trust AIs
-	    wrong logic  st event, lifecycle, data lifespan and scope
-	    wrong api syntax sometimes
+    do not trust AIs
+      wrong logic  st event, lifecycle, data lifespan and scope
+      wrong api syntax sometimes
   st4 observations, incomplete,         < tested only with  habit at least one project longrunning;  todo utest (notplanned)
     summary
       file content sync w         buffer
-      	when content externally changed/user revert, if prompt buffer discard confirmed, retains vanilla bookmark(view), but removes gutterregions (view)
+        when content externally changed/user revert, if prompt buffer discard confirmed, retains vanilla bookmark(view), but removes gutterregions (view)
       gutterregions sync w        view            <signet
       vanilla bookmark  sync w    view
       plugin.py init with         session
