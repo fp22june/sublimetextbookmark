@@ -1,38 +1,40 @@
 demo video ![webm(2M)](https://raw.githubusercontent.com/fp22june/sublimetextbookmark/main/demo1.webm)
 
 ```
-wip 2026Sep
+2026Sep
   modded
-    disable function cmd to open file with next bookmark
-    disable function clearall fornow
+    disable function cmd nextbookmark openfileneeded part
+    disable function cmd clearall    for now
     store line snippet when bookmarked
     list proj bookmarks w/ symlist 
     :=  [] {} 0 falsy is/not None
-  current issues
     edited file, File>Revert
-    add bkm, close st, file content overwritten externally (repo git ops), open
-    don't edit, add bkm only, st stay open, file content overwritten externally (repo git ops) (st auto reload)
-    add text, add bkm, close st, open, undo to del added text
+    add signet, close st, file content overwritten externally (repo git ops), open
+    don't edit, add signet only, st stay open, file content overwritten externally (repo git ops) (st auto reload)
+  current issues
+    add text, add signet, close st, open, undo to del added text
+    at view close; deny save prompt
+		backup option or ui show deleted for        unmatched sigs del at revert/extmod, .  
 
   test  commented commits should run, never get forcepsuhed
   dev   numbered commits may not run, often get forcepushed
 
   todo,notes
     save at least two versions perfile?                              see also "<tricky" 
-      sync per file.dirty (same file, splitview), dispensable
-      sync diskfile timestamp/linecount
-      optional sync per view, dispensable
-    bookmark store lcoation
+      DONE SCOPE0HOT        per (buffer)[https://www.sublimetext.com/docs/api_reference.html#sublime.Buffer] (same file, splitview)
+      DONE SCOPE1FILETIME   per actual file, eg. timestamp/linecount
+      not for now           optionally per view
+    signets store lcoation options
       programfile/package  /.json
       sublime-project      window.set_project_data( d)
       per file
-        allow diff proj, same bookmark; allow rename folder
+        allow diff proj, same signets; allow rename folder
         cautious public repo data leak
     plain json 
-      notplanned bookmark storage at sublime-worksp/project
+      notplanned signets storage at sublime-worksp/project
       easier edit after proj and folder rename
     View(st class).custommethod= def    per session
-    persist across st close; loss at last tab/view close (==.sublime-worksp/project internally)
+    these persist across st close; but cleared at buffer end == last tab/view close (==.sublime-worksp/project internally)
       view.settings().get/set()
       view.custom1=
     doesn't work get/setattr(view, "CUSTOM1", 1)
@@ -43,11 +45,18 @@ wip 2026Sep
 	  do not trust AIs
 	    wrong logic  st event, lifecycle, data lifespan and scope
 	    wrong api syntax sometimes
-  st4 observations, incomplete,         < tested only with  habit at least one project longrunning, todo utest
+  st4 observations, incomplete,         < tested only with  habit at least one project longrunning;  todo utest (notplanned)
+    summary
+      file content sync w         buffer
+      	when content externally changed/user revert, if prompt buffer discard confirmed, retains vanilla bookmark(view), but removes gutterregions (view)
+      gutterregions sync w        view            <signet
+      vanilla bookmark  sync w    view
+      plugin.py init with         session
+      events
     sublimeapistudy.py
       powershell sublimeapistudy_log.txt read
       testgutterregions   .sublime-keymap   { "keys": ["f9"], "command": "e1"},
-    note
+    observe
       text edit /view.dirty
       gutterregions         < view.add_regions(   < sync view, not shared by SplitView views
       vanilla bookmark                            < sync view,  ..
@@ -58,7 +67,7 @@ wip 2026Sep
       undo insert to del somehow (dirty, exit st, open, undo)    < TODO  , diy detct , no api on_undo
         somehow del regions
         somehow del vanilla bookmark
-      del                                                  <ignore,  user can decide with bkmtoggle
+      del                                                  <ignore,  user can decide with togglecmd
         no yet known logic retain regions 
         no yet known logic retain vanilla bookmark
       undo del to ins somehow                               <ignore for now
@@ -79,23 +88,23 @@ wip 2026Sep
         inherit and sync dirty
         no regions inherit                       < on_activated{     DONE
         no vanilla bookmark inherit
-      at file save                          <on_post_save etc
+      at file save                          <on_post_save     <diskwrite 
         consol edit
         nochange regions
         nochange vanilla bookmark
       at view close (click tab X)
         discard regions
         discard vanilla bookmark                                  < feature most wanted by sublimetexters
-      at view close; deny save prompt                            <tricky,  TODO next open need to restore from another bookmark storage, filetimestamp but not view synced 
+      at view close; deny save prompt                            <tricky, TODO
         retain dirty , if not last view of file after SplitView
         discard dirty, only if last 
       while file open; content overwritten external                 < on_reload  on_reload_async
         auto load if not dirty
         prompt discard if dirty,   undoable restore regions
-        discard regions                                             <tricky  TODO
+        discard regions                                             <tricky  DONE
         save, load/ try sync   vanilla bookmark
       File>Revert                                                <on_revert  on_revert_async 
-        discard regions                                               <tricky TODO
+        discard regions                                               <tricky DONE
         save, load/ try sync   vanilla bookmark
     api
       at st start; hot reload   plugin.py edit/save               <avoid only readstore once here. togglebookmark, st/proj close/oprn  changes store and need readstore

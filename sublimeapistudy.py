@@ -42,9 +42,10 @@ def debugprint(x=None):
   global viewhint
   x=sys._getframe().f_back.f_code.co_name.ljust(15)+' '+(x or '')
   sys.stdout.write(x+"\n")
-  log(' '*viewhint+'.'+' '*(6-viewhint) + x); 
+  m=['-',' '][viewhint%2]
+  log(m*viewhint+str(viewhint%10)+m*(20-viewhint)+' ' + x); 
   viewhint+=1
-  if viewhint>=6: viewhint=0 
+  if viewhint>=20: viewhint=0 
   pass
 
 class E20260831(sublime_plugin.EventListener):

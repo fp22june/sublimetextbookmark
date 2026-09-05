@@ -21,7 +21,7 @@ SESSIONSIGS = {}
 FSNAME = 'sigbk'
 SETTINGSD = os.path.join(sublime.packages_path(), 'User')
 pathlib.Path(SETTINGSD).mkdir(parents=True, exist_ok=True)
-DEBUGSTARTLOADDATAJSON=None or os.path.join(SETTINGSD, f'{FSNAME}.store.sessionstartreadonly.json')
+DEBUGSTARTLOADDATAJSON=None #or os.path.join(SETTINGSD, f'{FSNAME}.store.sessionstartreadonly.json')
 LOADDATAJSON=os.path.join(SETTINGSD, f'{FSNAME}.store.json')
 WORKJSONVER='1'
 SAVEDATAJSON=os.path.join(SETTINGSD, f'{FSNAME}.store.json')
@@ -29,9 +29,9 @@ SAVEJSONVER='1'
 # SAVEDATAJSON=os.path.join(SETTINGSD, f'{FSNAME}.store')
 # SAVEJSONVER=0
 SETTINGSF = os.path.join(f'{FSNAME}.sublime-settings')
-ENUMSCOPE=['DATAHOT','DATAFILETIME']
+ENUMSCOPE=['DATAHOT','DATAFILETIME'] #Scope0Sig, Scope1Sig
 S1NAMETS='TIMESTAMP'
-S1NAMETSD='TIMESTAMPDEBUG'
+S1NAMETSLOCAL='TIMESTAMPLOCAL'
 
 def sigrowlistFromViewRegions(view):
     lns = []
@@ -50,7 +50,7 @@ def newScopedSigsOfFile(s,p,f):      rs=getFile(p,f) or newFile(p,f); rs[s]=[]; 
 def getScopedSigsOfFile(s,p,f):      return rs.get(s) if(rs:=getFile(p,f)) is not None else None
 def setScopedSigsOfFile(s,p,f,obs):  rs=getFile(p,f) or newFile(p,f); rs[s]=obs
 def getScope1TSOfFile(p,f):          return rs.get(S1NAMETS)     if(rs:=getFile(p,f)) is not None else None
-def setScope1TSOfFile(p,f,t,td=None):rs=getFile(p,f) or newFile(p,f); rs[S1NAMETS]=t; rs[S1NAMETSD]=td if td else None
+def setScope1TSOfFile(p,f,t,t2=None):rs=getFile(p,f) or newFile(p,f); rs[S1NAMETS]=t; rs[S1NAMETSLOCAL]=t2 if t2 else None
 def newsig(view,r):
   return {
     "tp": time.strftime("%Y-%m-%d %a %H:%M:%S", time.localtime()),
@@ -59,12 +59,12 @@ def newsig(view,r):
     "c": view.substr(view.line(view.text_point(r, 0))),
   }
 
-def updateScope0RFromViewRegions(view):
+def updateScope0SigFromViewRegions(view):
   if (  (f:=view.file_name())
     and (w:=view.window())
     and (pf:=w.project_file_name()) # is project
     and (p:=getProject(pf)) is not None # already has entry
-    and (obs:=getScopedSigsOfFile('DATAHOT',p,f)) is not None # already has entries
+    and (obs:=getScopedSigsOfFile('DATAHOT',p,f)) is not None # empty[] truthy
     and (rs:=sigrowlistFromViewRegions(view)) is not None # empty[] truthy
   ):
     if len(rs)==len(obs): # 1to1 ln switch
@@ -73,26 +73,44 @@ def updateScope0RFromViewRegions(view):
       setScopedSigsOfFile('DATAHOT',p,f,obs)
     else: # overwrite
       setScopedSigsOfFile('DATAHOT',p,f,[newsig(view,r) for r in rs])
-def newScope1TAndRFromViewRegions(p,f,view):
+def newScope1TSAndSigFromScope0Sig(p,f,view):
   if obs:=getScopedSigsOfFile('DATAHOT',p,f):
     setScopedSigsOfFile('DATAFILETIME',p,f,obs)
     setScope1TSOfFile(p,f,os.path.getmtime(view.file_name()),datetime.datetime.fromtimestamp(os.path.getmtime(view.file_name())).strftime('%Y-%m-%d %a %H:%M:%S'))
-  else:
-    if(   (rs:=sigrowlistFromViewRegions(view)) # [] falsy  ==  len(obs)>0
-      and  (obs:=[newsig(view,r) for r in rs])
-    ):
+def newScope1TSAndSigAndScope0SigFromViewRegions(p,f,view):
+  if(   (rs:=sigrowlistFromViewRegions(view)) is not None # empty[] truthy
+  ):
+    obs=[newsig(view,r) for r in rs]
+    setScopedSigsOfFile('DATAHOT',p,f,obs)
+    setScopedSigsOfFile('DATAFILETIME',p,f,obs)
+    setScope1TSOfFile(p,f,os.path.getmtime(view.file_name()),datetime.datetime.fromtimestamp(os.path.getmtime(view.file_name())).strftime('%Y-%m-%d %a %H:%M:%S'))
+def updateScope0SigFromScope1Sig(view):
+  if(   (f:=view.file_name()) 
+    and (w:=view.window())
+    and (pf:=w.project_file_name()) # is project
+    and (p:=getProject(pf)) is not None # already has entry
+    # and os.path.exists(f)
+    and (tf:=os.path.getmtime(view.file_name()))
+    and (ts:=getScope1TSOfFile(p,f))
+    and (obs:=getScopedSigsOfFile('DATAFILETIME',p,f)) is not None # empty[] truthy
+  ):
+    if tf==ts:
       setScopedSigsOfFile('DATAHOT',p,f,obs)
-      setScopedSigsOfFile('DATAFILETIME',p,f,obs)
+    else: # timestamp unmatch
+      vobs=[ o for o in obs 
+            if o["c"]==view.substr(view.line(view.text_point(o["ln"], 0))) ] # 1to1 ln switch if snippets match     # TODO backup unmatch sigs before delete
+      setScopedSigsOfFile('DATAHOT',p,f,vobs)
+      setScopedSigsOfFile('DATAFILETIME',p,f,vobs)
       setScope1TSOfFile(p,f,os.path.getmtime(view.file_name()),datetime.datetime.fromtimestamp(os.path.getmtime(view.file_name())).strftime('%Y-%m-%d %a %H:%M:%S'))
-def promptUpdateScope1TAndRFromViewRegions(p,f,view):
-  pass
-def updateViewRegionsFromScopedSigs(s,view):
+      sublime.status_message(u"🔖 Reverted / File modification detected, {0} / {1} bookmark{2} restored".format(len(vobs),len(obs),'s' if len(obs)>1 else ''))
+      pass
+def updateViewRegionsFromScopedSig(s,view):
   if ( (not view.is_scratch())
     and (f:=view.file_name())
     and (w:=view.window())
     and (pf:=w.project_file_name()) # is project
     and (p:=getProject(pf)) is not None # already has entry
-    and (obs:=getScopedSigsOfFile(s,p,f)) is not None # already has entries
+    and (obs:=getScopedSigsOfFile(s,p,f)) is not None # empty[] truthy
   ):
     regions=[
         sublime.Region(pt, pt)
@@ -102,9 +120,9 @@ def updateViewRegionsFromScopedSigs(s,view):
     ]
     view.erase_regions(SIGNET_REGION_NAME)
     view.add_regions(SIGNET_REGION_NAME, regions, str(sublime.load_settings(SETTINGSF).get('scope') or "region.redish"), SIGNET_ICON)
-def addViewRegionsFromScopedSigs(s,pf,f,view): # by SbotToggleSignetCommand;  copied from updateViewRegionsFromScopedSigs(), skip some for perf only
+def addViewRegionsFromScopedSig(s,pf,f,view): # partial dup of updateViewRegionsFromScopedSig(), lesser conditional for performance
   if (  (p:=getProject(pf)) is not None # already has entry
-    and (obs:=getScopedSigsOfFile(s,p,f)) is not None # already has entry
+    and (obs:=getScopedSigsOfFile(s,p,f)) is not None # empty[] truthy
   ):
     regions=[
         sublime.Region(pt, pt)
@@ -114,14 +132,14 @@ def addViewRegionsFromScopedSigs(s,pf,f,view): # by SbotToggleSignetCommand;  co
     ]
     view.add_regions(SIGNET_REGION_NAME, regions, str(sublime.load_settings(SETTINGSF).get('scope') or "region.redish"), SIGNET_ICON)
 
-def toggleScope0R(p,f,r,view):
-  obs=getScopedSigsOfFile('DATAHOT',p,f) or newScopedSigsOfFile('DATAHOT',p,f)
+def toggleScopedSig(s,p,f,r,view):
+  obs=getScopedSigsOfFile(s,p,f) or newScopedSigsOfFile(s,p,f)
   if any(o.get("ln") == r for o in obs):
     obs = [o for o in obs if o.get("ln") != r]
   else:
     obs.append(newsig(view,r))
   obs=sorted(obs, key=lambda x: x["ln"])
-  setScopedSigsOfFile('DATAHOT',p,f,obs)
+  setScopedSigsOfFile(s,p,f,obs)
 
 def updateSessionsigsFromDiskreadJson():
   global SESSIONSIGS
@@ -191,38 +209,47 @@ class E20260901(sublime_plugin.EventListener):
     updateSessionsigsFromDiskreadJson()
     if len(views) > 0 and views[0].window() is not None:
       for view in views:
-        updateViewRegionsFromScopedSigs('DATAHOT',view)
+        if not view.is_dirty():
+          updateScope0SigFromScope1Sig(view)
+        updateViewRegionsFromScopedSig('DATAHOT',view)
   def on_load_project(self, window): #  Project > Open; ! Not triggered at program start even if project restored  
     for view in window.views():
-      updateViewRegionsFromScopedSigs('DATAHOT',view)
+        if not view.is_dirty():
+          updateScope0SigFromScope1Sig(view)
+        updateViewRegionsFromScopedSig('DATAHOT',view)
   def on_load(self, view):
     updateSessionsigsFromDiskreadJson() #TODO reduce diskread
-    updateViewRegionsFromScopedSigs('DATAHOT',view)
+    updateViewRegionsFromScopedSig('DATAHOT',view)
   def on_pre_close_project(self, window):
     for view in window.views():
-      updateScope0RFromViewRegions(view)
+      updateScope0SigFromViewRegions(view)
     writeJsonWithSessionsigs()
   # def on_pre_close(self, view): pass # children of on_pre_close_project()
   def on_deactivated(self, view): # lost focus
     if((fn:=view.file_name())
       and os.path.exists(fn)
     ):
-      updateScope0RFromViewRegions(view)
+      updateScope0SigFromViewRegions(view)
       writeJsonWithSessionsigs()
   def on_activated(self, view):
     if(  view.name()==MATCHFINDRESULTVIEW 
-      or MATCHFINDRESULTVIEW in (view.file_name() or []) ):
+      or MATCHFINDRESULTVIEW in (view.file_name() or '') ):
       # sublime.status_message(u".") # visually replace previous 
       pass # findresultsmod plugin
-    elif SYMLISTVIEW_NAMEID in view.name() or SYMLISTVIEW_NAMEID in (view.file_name() or []):
+    elif SYMLISTVIEW_NAMEID in view.name() or SYMLISTVIEW_NAMEID in (view.file_name() or ''):
       # sublime.status_message(u".") # visually replace previous
       pass # symlist plugin
     else:
       rs=sigrowlistFromViewRegions(view)
-      if len(rs)==0:
-        updateViewRegionsFromScopedSigs('DATAHOT',view) # tab right click > Split View
+      if len(rs)==0: # tab right click > Split View
+        if not view.is_dirty():
+          updateScope0SigFromScope1Sig(view)
+        updateViewRegionsFromScopedSig('DATAHOT',view)
         rs=sigrowlistFromViewRegions(view)
-      sublime.status_message(u"🔖 {0} bookmark{1}".format(len(rs),'s' if len(rs)>1 else ''))
+      if not view.is_dirty():
+        pass
+      else:
+        sublime.status_message(u"🔖 {0} bookmark{1}".format(len(rs),'s' if len(rs)>1 else ''))
     #
     if(   not view.is_dirty()
       and (f:=view.file_name()) 
@@ -232,9 +259,13 @@ class E20260901(sublime_plugin.EventListener):
       and os.path.exists(f)
     ):
       if not (ts:=getScope1TSOfFile(p,f)):
-        newScope1TAndRFromViewRegions(p,f,view)
+        if getScopedSigsOfFile('DATAHOT',p,f):
+          newScope1TSAndSigFromScope0Sig(p,f,view)
+        else:
+          if len(sigrowlistFromViewRegions(view))>0:
+            newScope1TSAndSigAndScope0SigFromViewRegions(p,f,view)
       elif ts!=os.path.getmtime(view.file_name()):
-        # promptUpdateScope1TAndRFromViewRegions(p,f,view)
+        # vanilla prompt
         pass
   def on_post_save(self, view):
     if(   not view.is_dirty()
@@ -242,19 +273,19 @@ class E20260901(sublime_plugin.EventListener):
       and (w:=view.window())
       and (pf:=w.project_file_name()) # is project
       and (p:=getProject(pf)) is not None # already has entry
+      and (_:=getScopedSigsOfFile('DATAHOT',p,f)) is not None # empty[] truthy
       and os.path.exists(f)
     ):
-      if not (ts:=getScope1TSOfFile(p,f)):
-        newScope1TAndRFromViewRegions(p,f,view)
-  #TODO
-  # def on_reload(self, view):
-  #     updateViewRegionsFromScopedSigs('DATAFILETIME',view)
-  # def on_reload_async(self, view):
-  #     updateViewRegionsFromScopedSigs('DATAFILETIME',view)
-  # def on_revert(self, view):
-  #     updateViewRegionsFromScopedSigs('DATAFILETIME',view)
-  # def on_revert_async(self, view):
-  #     updateViewRegionsFromScopedSigs('DATAFILETIME',view) 
+      newScope1TSAndSigAndScope0SigFromViewRegions(p,f,view)
+      writeJsonWithSessionsigs()
+  def on_reload(self, view):
+      updateScope0SigFromScope1Sig(view)
+      updateViewRegionsFromScopedSig('DATAHOT',view)
+  # def on_reload_async(self, view): seems always after on_sync
+  def on_revert(self, view):
+      updateScope0SigFromScope1Sig(view)
+      updateViewRegionsFromScopedSig('DATAHOT',view)
+  # def on_revert_async(self, view): seems always after on_sync
 
 class SbotToggleSignetCommand(sublime_plugin.TextCommand):
   def is_visible(self):
@@ -266,19 +297,20 @@ class SbotToggleSignetCommand(sublime_plugin.TextCommand):
       and (w:=view.window())
       and (pf:=w.project_file_name()) # is project
       # and (p:=getProject(pf)) is not None # already has entry
-      # and (obs:=getScopedSigsOfFile('DATAHOT',p,f)) is not None # already has entries
+      # and (obs:=getScopedSigsOfFile('DATAHOT',p,f)) is not None # empty[] truthy
       and (rs:=sigrowlistFromViewRegions(view)) is not None # empty[] truthy
       and (caret:=view.sel()[0].b if len(view.sel()) == 1 else None) is not None # 0 truthy
       and (r_:=view.rowcol(caret)) # invalid input outputs (0,0), is truthy         CAUTION invalid
     ):
-      updateScope0RFromViewRegions(view)
+      updateScope0SigFromViewRegions(view)
       r,_=r_
       if r is not None:
         if r in rs: rs.remove(r)
         else:       rs.append(r)
-        toggleScope0R(getProject(pf) or newProject(pf),f,r,view)
+        toggleScopedSig('DATAHOT',getProject(pf) or newProject(pf),f,r,view)
+        if not view.is_dirty(): toggleScopedSig('DATAFILETIME',getProject(pf) or newProject(pf),f,r,view)
       view.erase_regions(SIGNET_REGION_NAME)
-      addViewRegionsFromScopedSigs('DATAHOT',pf,f,view)
+      addViewRegionsFromScopedSig('DATAHOT',pf,f,view)
       writeJsonWithSessionsigs()
 class SbotGotoSignetCommand(sublime_plugin.TextCommand):
     def is_enabled(self):
@@ -289,14 +321,13 @@ class SbotGotoSignetCommand(sublime_plugin.TextCommand):
     def run(self, __, where):
       dnext=where=='next'
       nav_all_files=sublime.load_settings(SETTINGSF).get('nav_all_files') or False
-      # print(nav_all_files)
       view=self.view
       if ( (not view.is_scratch())
         and (fn:=view.file_name())
         and (w:=view.window())
         and (pf:=w.project_file_name()) # is project
         and (ps:=getProject(pf)) is not None # already has entry
-        # and (obs:=getScopedSigsOfFile('DATAHOT',ps,fn)) is not None # already has entries
+        # and (obs:=getScopedSigsOfFile('DATAHOT',ps,fn)) is not None # empty[] truthy
         # and (rs:=sigrowlistFromViewRegions(view)) is not None # empty[] truthy
         and (caret:=view.sel()[0].b if len(view.sel()) == 1 else None) is not None # 0 truthy
         and (r_:=view.rowcol(caret)) # invalid input outputs (0,0), is truthy         CAUTION invalid
@@ -387,7 +418,7 @@ class SbotgenlistCommand(sublime_plugin.TextCommand):
     if((fn:=view.file_name())
       and os.path.exists(fn)
     ):
-      updateScope0RFromViewRegions(view)
+      updateScope0SigFromViewRegions(view)
       writeJsonWithSessionsigs()
     if (   (w:=view.window())
       and (pf:=w.project_file_name()) # is project
