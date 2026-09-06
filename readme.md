@@ -2,39 +2,41 @@ demo video ![webm(2M)](https://raw.githubusercontent.com/fp22june/sublimetextboo
 
 ```
 2026Sep
-  modded
+  change/addfeature
     disable function cmd nextbookmark openfileneeded part
     disable function cmd clearall    for now
     store line snippet when bookmarked
-    list proj bookmarks w/ symlist 
+    list proj bookmarks w/ symbols
+    symlist num of bookmarks under each    https://blog.thul.org/technik/downloads/symlist-clickable-function-list-for-sublime-text/
     :=  [] {} 0 falsy is/not None
     edited file, File>Revert
     add signet, close st, file content overwritten externally (repo git ops), open
     don't edit, add signet only, st stay open, file content overwritten externally (repo git ops) (st auto reload)
     at view close; deny save prompt
+    unmatched sigs at revert/extmod are archived, hinted at status bar
+    list archived bookmark cmd panel
   current issues
     add text, add signet, close st, open, undo to del added text
-    backup option or ui show deleted for        unmatched sigs del at revert/extmod, .
-    demo vid git checkoutsoft
-    ~6mo, ?polite to pr upstream heavy rewrite? or dist own packagecontrol
 
   test  commented commits should run, never get forcepsuhed
   dev   numbered commits may not run, often get forcepushed
 
   todo,notes
+    demo vid git checkoutsoft, archive feature
+    >6mo dist packagecontrol
     save at least two versions perfile?                              see also "<tricky" 
-      DONE SCOPE0HOT        per (buffer)[https://www.sublimetext.com/docs/api_reference.html#sublime.Buffer] (same file, splitview)
-      DONE SCOPE1FILETIME   per actual file, eg. timestamp/linecount
+      DONE SCOPE0HOT        sync to (kind of) buffer, to handle splitview    https://www.sublimetext.com/docs/api_reference.html#sublime.Buffer
+      DONE SCOPE1FILETIME   sync to actual file (timestamp), to handle extmod and revert
       not for now           optionally per view
     signets store lcoation options
-      programfile/package  /.json
+      programfile/package  /.json                          <remain the same for now
       sublime-project      window.set_project_data( d)
-      per file
-        allow diff proj, same signets; allow rename folder
+      per file overridedatafile, next to the actual, use if check exist
+        allow diff proj, same signets; allow rename folder; git man the datafile
         cautious public repo data leak
     plain json 
       notplanned signets storage at sublime-worksp/project
-      easier edit after proj and folder rename
+      textedit freedom eg after proj and folder rename
     View(st class).custommethod= def    per session
     these persist across st close; but cleared at buffer end == last tab/view close (==.sublime-worksp/project internally)
       view.settings().get/set()
@@ -136,5 +138,5 @@ demo video ![webm(2M)](https://raw.githubusercontent.com/fp22june/sublimetextboo
           File>Open
     cmd
       toggle                                            <diskwrite
-      gensymlist                                            <diskwrite
+      genlist                                            <diskwrite
 ```

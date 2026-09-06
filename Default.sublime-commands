@@ -6,5 +6,6 @@
     // { "caption": "Signet Bookmarks: Edit Settings", "command": "edit_settings", "args": { "base_file": "${packages}/SbotSignet/SbotSignet.sublime-settings", "default": "{\n$0\n}\n" } },
 
     { "caption": "Signet Bookmarks: List all in current project", "command": "sbotgenlist"},
-    { "caption": "Signet Bookmarks: Open the storage json file", "command": "sbotopenjson"},
+    // { "caption": "Signet Bookmarks: Open the storage json file", "command": "sbotopenjson"},
+    { "caption": "Signet Bookmarks: List archived bookmarks of current file", "command": "sbotlistarchived"},
 ]

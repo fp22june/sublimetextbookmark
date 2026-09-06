@@ -49,22 +49,25 @@ def getProject(x):                    return SESSIONSIGS.get(x)
 def newFile(p,f):                     p[f]={}; return p[f]
 def getFile(p,f):                     return p.get(f) if p is not None else None
 def newScopedSigsOfFile(s,p,f):       rs=getFile(p,f) or newFile(p,f); rs[s]=[]; return rs[s]      # p=getProject(str), f=view.file_name()
-def getScopedSigsOfFile(s,p,f):       return rs.get(s)            if(rs:=getFile(p,f)) is not None else None
+def getScopedSigsOfFile(s,p,f):       return rs.get(s)                 if(rs:=getFile(p,f)) is not None else None
 def setScopedSigsOfFile(s,p,f,obs):   rs=getFile(p,f) or newFile(p,f); rs[s]=obs
-def getScope1TSOfFile(p,f):           return rs.get(S1NAMETS)     if(rs:=getFile(p,f)) is not None else None
-def setScope1TSOfFile(p,f,t,t2=None): rs=getFile(p,f) or newFile(p,f); rs[S1NAMETS]=t; rs[S1NAMETSLOCAL]=t2 if t2 else None
-def getArchiveOfFile(p,f):            return rs.get(INVALIDSIG)   if(rs:=getFile(p,f)) is not None else None
-def setArchiveOfFile(p,f,obs):        rs=getFile(p,f) or newFile(p,f); rs[INVALIDSIG]=[
-                                        {**o,
-                                        'tsp':time.strftime("%Y-%m-%d %a %H:%M:%S", time.localtime()),
-                                        'tsa':int(time.time())
-                                        } for o in obs]
+def getScope1TSOfFile(p,f):           return rs.get(S1NAMETS)          if(rs:=getFile(p,f)) is not None else None
+def setScope1TSOfFile(p,f,t):         rs=getFile(p,f) or newFile(p,f); rs[S1NAMETS]=t; rs[S1NAMETSLOCAL]=datetime.datetime.fromtimestamp(t).strftime('%Y-%m-%d %a %H:%M:%S')
+def cleanScope1OfFile(p,f):           (rs:=getFile(p, f)) and (len(rs.get('DATAFILETIME')or[])==0) and (rs.pop('DATAFILETIME',None), rs.pop(S1NAMETS,None), rs.pop(S1NAMETSLOCAL,None))
+def getArchiveOfFile(p,f):            return rs.get(INVALIDSIG)        if(rs:=getFile(p,f)) is not None else None
+def setArchiveOfFile(p,f,obs):        rs=getFile(p,f) or newFile(p,f); rs[INVALIDSIG]=obs
 def newsig(view,r):
   return {
     "tp": time.strftime("%Y-%m-%d %a %H:%M:%S", time.localtime()),
-    'ts': int(time.time()),
+    "ts": int(time.time()),
     "ln": r,
     "c": view.substr(view.line(view.text_point(r, 0))),
+  }
+def timemarkarchive(view,o):
+  return {**o, # is shallow copy
+    "tpa":time.strftime("%Y-%m-%d %a %H:%M:%S", time.localtime()),
+    "tsa":int(time.time()),
+    "ca":view.substr(view.line(view.text_point(o["ln"], 0))),
   }
 
 def updateScope0SigFromViewRegions(view):
@@ -84,14 +87,16 @@ def updateScope0SigFromViewRegions(view):
 def newScope1TSAndSigFromScope0Sig(p,f,view):
   if obs:=getScopedSigsOfFile('DATAHOT',p,f):
     setScopedSigsOfFile('DATAFILETIME',p,f,obs)
-    setScope1TSOfFile(p,f,os.path.getmtime(view.file_name()),datetime.datetime.fromtimestamp(os.path.getmtime(view.file_name())).strftime('%Y-%m-%d %a %H:%M:%S'))
+    setScope1TSOfFile(p,f,os.path.getmtime(view.file_name()))
+    cleanScope1OfFile(p,f)
 def newScope1TSAndSigAndScope0SigFromViewRegions(p,f,view):
   if(   (rs:=sigrowlistFromViewRegions(view)) is not None # empty[] truthy
   ):
     obs=[newsig(view,r) for r in rs]
     setScopedSigsOfFile('DATAHOT',p,f,obs)
     setScopedSigsOfFile('DATAFILETIME',p,f,obs)
-    setScope1TSOfFile(p,f,os.path.getmtime(view.file_name()),datetime.datetime.fromtimestamp(os.path.getmtime(view.file_name())).strftime('%Y-%m-%d %a %H:%M:%S'))
+    setScope1TSOfFile(p,f,os.path.getmtime(view.file_name()))
+    cleanScope1OfFile(p,f)
 def updateScope0SigFromScope1Sig(view):
   if(   (f:=view.file_name()) 
     and (w:=view.window())
@@ -108,28 +113,27 @@ def updateScope0SigFromScope1Sig(view):
       # vobs=[ o for o in obs 
       #       if o["c"]==view.substr(view.line(view.text_point(o["ln"], 0))) ]
       vobs=[]
-      ivobs=[]
+      iobs=[]
       for o in obs:
         if o["c"]==view.substr(view.line(view.text_point(o["ln"], 0))):
           vobs.append(o.copy()) # 1to1 ln switch if snippets match
         else:
-          ivobs.append(o.copy())
-      setArchiveOfFile(p,f,ivobs)
+          iobs.append(o.copy())
+      setArchiveOfFile(p,f,[timemarkarchive(view,o) for o in iobs])
       setScopedSigsOfFile('DATAHOT',p,f,vobs)
       setScopedSigsOfFile('DATAFILETIME',p,f,vobs)
-      setScope1TSOfFile(p,f,os.path.getmtime(view.file_name()),datetime.datetime.fromtimestamp(os.path.getmtime(view.file_name())).strftime('%Y-%m-%d %a %H:%M:%S'))
-      sd=len(obs)-len(vobs)
-      if sd==0:
+      setScope1TSOfFile(p,f,os.path.getmtime(view.file_name()))
+      cleanScope1OfFile(p,f)
+      if len(iobs)==0:
         sublime.status_message(u"🔖 Reverted / File modification detected, all bookmarks restored and adjusted to new line numbers.")
       else:
-        sublime.status_message(u"🔖 Reverted / File modification detected, {0} / {1} invalid bookmark{2} archived.".format(sd,len(obs),'s' if sd>1 else ''))
-      #debug
-      if 0<sd:
-        debugprint(view,'{0} archived'.format(sd))
-        [debugprint(view,y) for y in
-          [ ('\n ln#'+str(p['ln']).ljust(4) + str(p['tp'])                                           +':'+str(p['c'])
-            +'\n '+      '(now)'.ljust(3+4) + time.strftime("%Y-%m-%d %a %H:%M:%S", time.localtime())+':'+view.substr(view.line(view.text_point(p["ln"], 0)))
-            ) for p in ivobs ] ]
+        sublime.status_message(u"🔖 Reverted / File modification detected, {0} / {1} invalid bookmark{2} archived.".format(len(iobs),len(obs),'s' if len(iobs)>1 else ''))
+      # if 0<len(iobs):
+      #   debugprint(view,'{0} archived'.format(len(iobs)))
+      #   [debugprint(view,y) for y in
+      #     [ ('\n ln#'+str(p['ln']).ljust(4) + str(p['tp'])                                           +':'+str(p['c'])
+      #       +'\n '+      '(now)'.ljust(3+4) + time.strftime("%Y-%m-%d %a %H:%M:%S", time.localtime())+':'+view.substr(view.line(view.text_point(p["ln"], 0)))
+      #       ) for p in iobs ] ]
 def updateViewRegionsFromScopedSig(s,view):
   if ( (not view.is_scratch())
     and (f:=view.file_name())
@@ -192,13 +196,14 @@ def updateSessionsigsFromDiskreadJson():
                           "ln": o.get("ln")
                         }
                         if "tp"  in o:  ao["tp"]=o.get("tp")
-                        if 'ts'  in o:  ao['ts']=o.get('ts')
+                        if "ts"  in o:  ao["ts"]=o.get("ts")
                         if "c"   in o:   ao["c"]=o.get("c")
-                        if "tsp" in o: ao["tsp"]=o.get("tsp")
+                        if "tpa" in o: ao["tpa"]=o.get("tpa")
                         if "tsa" in o: ao["tsa"]=o.get("tsa")
+                        if "ca"  in o:  ao["ca"]=o.get("ca")
                         t.append(ao)
                     SESSIONSIGS[pf][fn][k]=t
-                  elif k==S1NAMETS:
+                  elif k in [S1NAMETS, S1NAMETSLOCAL]:
                     SESSIONSIGS[pf][fn][k]=v
               else: # cepthomas/SbotSignet 1567db9
                 SESSIONSIGS[pf][fn]['DATAHOT'] = [{"ln": o} for o in ds]
@@ -208,11 +213,6 @@ def updateSessionsigsFromDiskreadJson():
       raise
     #   error(f'Error reading {LOADDATAJSON}: {e}', e.__traceback__)
 def writeJsonWithSessionsigs():
-  # try:
-  #   with open(SAVEDATAJSON, 'w') as fp:
-  #     json.dump(SESSIONSIGS, fp, indent=4)
-  # except Exception as e:
-  #   error(f'Error writing {SAVEDATAJSON}: {e}', e.__traceback__)
   timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
   temp_file = f"{SAVEDATAJSON}.{timestamp}.tmp"
   try:
@@ -335,8 +335,10 @@ class SbotToggleSignetCommand(sublime_plugin.TextCommand):
       if r is not None:
         if r in rs: rs.remove(r)
         else:       rs.append(r)
-        toggleScopedSig('DATAHOT',getProject(pf) or newProject(pf),f,r,view)
-        if not view.is_dirty(): toggleScopedSig('DATAFILETIME',getProject(pf) or newProject(pf),f,r,view)
+        p=getProject(pf) or newProject(pf)
+        toggleScopedSig('DATAHOT',p,f,r,view)
+        if not view.is_dirty(): toggleScopedSig('DATAFILETIME',p,f,r,view)
+        cleanScope1OfFile(p,f)
       view.erase_regions(SIGNET_REGION_NAME)
       addViewRegionsFromScopedSig('DATAHOT',pf,f,view)
       writeJsonWithSessionsigs()
@@ -563,7 +565,7 @@ class SbotshowlistCommand(sublime_plugin.TextCommand): #run_command('sbotshowlis
       and (s:=p[1].replace('.sublime-project', ''))
     ):
       #self.view.erase(edit, sublime.Region(0, self.view.size()))
-      self.view.insert(edit, self.view.size(), "{1}Listing bookmarks for {0}\n".format(s,"\n\n"if self.view.size()>0 else''))
+      self.view.insert(edit, self.view.size(), "{1}Listing bookmarks in {0}\n".format(s,"\n\n"if self.view.size()>0 else''))
       self.view.insert(edit, self.view.size(), "\n".join(x))
 class SbotrequestsymlistbookmarkrowsCommand(sublime_plugin.TextCommand): #expose symlist
   def run(self, edit, x=[]):
@@ -588,3 +590,25 @@ class SbothighlightsymlistrowsCommand(sublime_plugin.TextCommand): #expose symli
           pt = self.view.text_point(r, 0)  # line start
           regions.append(sublime.Region(pt, pt))
       self.view.add_regions('symlistrowsig', regions, 'region.redish', 'Packages/Theme - Default/common/label.png')
+class SbotlistarchivedCommand(sublime_plugin.TextCommand): #run_command('sbotlistarchived'
+  def run(self, __):
+    view=self.view
+    if(   (f:=view.file_name())
+      and (w:=view.window())
+      and (pf:=w.project_file_name()) # is project
+      and (p:=getProject(pf)) is not None # already has entry
+      and (iobs:=getArchiveOfFile(p,f)) # empty[] falsy
+    ):
+      v=w.new_file()
+      v.set_name('Archived bookmarks of {0}'.format(f))
+      v.set_scratch(True)
+      v.run_command('sbotappendarchiveview',{'x':f,'y':"\n".join(
+        [ ('\n ln#'+str(p['ln']).ljust(4) + str(p['tp'])                                           +':'+str(p['c'])
+          +'\n '+           ''.ljust(3+4) + str(p['tpa'])                                          +':'+str(p['ca'])
+          +'\n '+      '(now)'.ljust(3+4) + time.strftime("%Y-%m-%d %a %H:%M:%S", time.localtime())+':'+view.substr(view.line(view.text_point(p["ln"], 0)))
+          ) for p in iobs ] ) })
+class SbotappendarchiveviewCommand(sublime_plugin.TextCommand): #run_command('sbotappendarchiveview',{'x':
+  def run(self, edit, x='', y=''):
+    view=self.view
+    self.view.insert(edit,0, "Listing archived bookmarks of {0}\n".format(x))
+    self.view.insert(edit, self.view.size(), y)
